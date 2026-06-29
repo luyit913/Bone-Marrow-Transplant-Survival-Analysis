@@ -1,0 +1,116 @@
+---
+title: "537BMTQ4-6"
+author: "Luyi Tong"
+date: "2025-12-04"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+library(survival)
+library(survminer)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+bmt <- read.csv("bmt.csv")
+```
+
+# baseline survival
+```{r}
+dfs_surv <- Surv(bmt$tdfs, bmt$deltadfs)      # disease-free survival
+relapse_surv <- Surv(bmt$tdfs, bmt$deltar)    # relapse survival
+agvhd_surv <- Surv(bmt$ta, bmt$deltaa)        # time to aGVHD
+bmt$disgroup <- factor(bmt$disgroup,
+                       levels = c(1, 2, 3),
+                       labels = c("ALL", "AML Low Risk", "AML High Risk"))
+```
+
+
+# Q4: is aGVHD associated with improved DFS and lower relapse?
+
+## DFS (unadjusted)
+```{r}
+bmt_td_dfs <- tmerge(data1 = bmt, data2 = bmt, id = id,
+                 tstart = 0, tstop = tdfs,
+                 event = event(tdfs, deltadfs),
+                 agvhd = tdc(ta))
+
+# time-dependent cox model
+cox_td_dfs <- coxph(Surv(tstart, tstop, event) ~ agvhd, data = bmt_td_dfs)
+summary(cox_td_dfs)
+```
+
+## DFS (adjusted)
+```{r}
+cox_td_dfs_adj <- coxph(Surv(tstart, tstop, event) ~ agvhd + age + cmv + fab + disgroup + mtx, data = bmt_td_dfs)
+summary(cox_td_dfs_adj)
+
+# ggadjustedcurves(cox_td_dfs_adj, variable = "agvhd", method = "average", legend.title = "aGVHD Status", legend.labs = c("No aGVHD", "aGVHD"), title = "Marginal Disease-Free Survival by aGVHD", xlab = "Days", ylab = "Survival Probability")
+```
+
+
+## relapse (unadjusted)
+```{r}
+bmt_td_relapse <- tmerge(data1 = bmt, data2 = bmt, id = id,
+                         tstart = 0, tstop = tdfs,
+                         relapse = event(tdfs, deltar),
+                         agvhd = tdc(ta))
+
+# time-dependent cox model
+cox_td_relapse <- coxph(Surv(tstart, tstop, relapse) ~ agvhd, data = bmt_td_relapse)
+summary(cox_td_relapse)
+```
+
+## relapse (adjusted)
+```{r}
+cox_td_relapse_adj <- coxph(Surv(tstart, tstop, relapse) ~ agvhd + age + cmv + fab + disgroup + mtx, data = bmt_td_relapse)
+summary(cox_td_relapse_adj)
+
+# ggadjustedcurves(cox_td_relapse_adj, variable = "agvhd", method = "average", legend.title = "aGVHD Status", legend.labs = c("No aGVHD", "aGVHD"), title = "Marginal Relapse-Free Survival by aGVHD", xlab = "Days", ylab = "Survival Probability")
+```
+
+
+
+# Q5: Among patients with aGVHD, what baseline factors predict DFS?
+```{r}
+# patients with aGVHD
+bmt_agvhd <- bmt %>% filter(deltaa == 1)
+
+dfs_surv_agvhd <- Surv(bmt_agvhd$tdfs, bmt_agvhd$deltadfs)
+cox_agvhd <- coxph(dfs_surv_agvhd ~ age + cmv + donorage + donorcmv +
+                                                waittime + fab + disgroup + mtx,
+                              data = bmt_agvhd)
+summary(cox_agvhd)
+```
+
+
+# Q6: MTX ~ aGVHD?
+
+## KM plot
+```{r}
+km_agvhd_mtx <- survfit(agvhd_surv ~ mtx, data = bmt)
+ggsurvplot(km_agvhd_mtx, conf.int = TRUE,
+           title = "Unadjusted Time to aGVHD by MTX Use",
+           legend.labs = c("No MTX", "MTX"),
+           xlab = "Days", ylab = "Survival Probability")
+```
+
+## adjusted Cox model
+```{r}
+cox_agvhd_mtx <- coxph(Surv(ta, deltaa) ~ mtx + age + cmv + fab + disgroup, data = bmt)
+summary(cox_agvhd_mtx)
+
+# ggadjustedcurves(cox_agvhd_mtx, variable = "mtx", method = "average", legend.title = "MTX use", title = "Adjusted Time to aGVHD by MTX Use", xlab = "Days", ylab = "Survival Probability")
+```
+
+
+
+
+# PH assumption check
+```{r}
+cox.zph(cox_agvhd_mtx)
+```
+
