@@ -1,7 +1,7 @@
 # Bone Marrow Transplant Survival Analysis
 
 <p align="center">
-  <img src="figures/km_curve.png" width="650">
+  <img src="km_curve.png" width="700">
 </p>
 
 ## Project Overview
